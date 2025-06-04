@@ -1,5 +1,24 @@
 package dev.isxander.modstitch.shadow.moddevgradle
 
+import com.electronwill.nightconfig.core.Config
+import com.electronwill.nightconfig.toml.TomlFormat
+import dev.isxander.modstitch.base.BaseCommonImpl
+import dev.isxander.modstitch.base.FutureNamedDomainObjectProvider
+import dev.isxander.modstitch.base.extensions.MixinSettingsSerializer
+import dev.isxander.modstitch.base.extensions.modstitch
+import dev.isxander.modstitch.util.PlatformExtensionInfo
+import dev.isxander.modstitch.util.Platform
+import dev.isxander.modstitch.util.Side
+import dev.isxander.modstitch.util.addCamelCasePrefix
+import net.neoforged.moddevgradle.dsl.NeoForgeExtension
+import net.neoforged.moddevgradle.legacyforge.dsl.LegacyForgeExtension
+import net.neoforged.moddevgradle.legacyforge.dsl.MixinExtension
+import org.gradle.api.Action
+import org.gradle.kotlin.dsl.*
+import org.gradle.kotlin.dsl.assign
+import org.gradle.language.jvm.tasks.ProcessResources
+import org.semver4j.Semver
+import org.slf4j.event.Level
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import dev.isxander.modstitch.base.extensions.modstitch
 import dev.isxander.modstitch.base.moddevgradle.MDGType
@@ -9,13 +28,16 @@ import net.neoforged.moddevgradle.legacyforge.dsl.ObfuscationExtension
 import net.neoforged.moddevgradle.legacyforge.tasks.RemapJar
 import org.gradle.api.NamedDomainObjectProvider
 import org.gradle.api.Project
+import org.gradle.api.Transformer
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.PublishArtifact
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.jvm.tasks.Jar
 import org.gradle.kotlin.dsl.*
+import java.io.File
 
 class ShadowModdevgradleImpl(private val type: MDGType) : ShadowCommonImpl<Nothing>() {
     override fun configureShadowTask(
@@ -59,12 +81,16 @@ class ShadowModdevgradleImpl(private val type: MDGType) : ShadowCommonImpl<Nothi
                         // reobfJar takes jar, which is disabled
                         enabled = false
                     }
+
+                    target.modstitch.mixin {
+                        shadowTask.get().from(target.layout.buildDirectory.dir("mixin").get().file("${target.modstitch.metadata.modId.get()}.refmap.json"))
+                    }
                 }
 
                 target.extensions.configure<ObfuscationExtension> {
                     val reobfJar = reobfuscate(
                         jijJar,
-                        target.extensions.getByType<SourceSetContainer>()["main"]
+                        target.sourceSets["main"]
                     ).also {
                         addToArtifacts(target, it)
                     }
@@ -103,4 +129,10 @@ class ShadowModdevgradleImpl(private val type: MDGType) : ShadowCommonImpl<Nothi
             add("archives", task)
         }
     }
+
+    protected val Project.sourceSets: SourceSetContainer
+        get() = extensions.getByType<SourceSetContainer>()
+
+    private val Project.mixin: MixinExtension
+        get() = if (type == MDGType.Legacy) extensions.getByType<MixinExtension>() else error("Mixin is not available in this context")
 }

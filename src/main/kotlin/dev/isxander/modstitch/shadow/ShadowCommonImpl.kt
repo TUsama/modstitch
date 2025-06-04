@@ -25,9 +25,7 @@ abstract class ShadowCommonImpl<T : Any> : PlatformPlugin<T>() {
         target.pluginManager.apply("com.gradleup.shadow")
 
         val modstitchShadow by target.configurations.registering {
-            isCanBeResolved = true
-            isCanBeConsumed = false
-            isTransitive = false
+
         }
 
         target.tasks.named<Jar>("jar") {
