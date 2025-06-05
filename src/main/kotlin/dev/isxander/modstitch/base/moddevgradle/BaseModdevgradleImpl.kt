@@ -19,7 +19,6 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskProvider
-import org.gradle.jvm.tasks.Jar
 import org.gradle.kotlin.dsl.*
 import org.gradle.kotlin.dsl.assign
 import org.gradle.language.jvm.tasks.ProcessResources
@@ -32,7 +31,6 @@ class BaseModdevgradleImpl(
     type.platform,
     ModsTomlAppendMixinDataTask::class.java,
 ) {
-    private lateinit var remapConfiguration: Configuration
 
     override val platformExtensionInfo = PlatformExtensionInfo(
         "msModdevgradle",
@@ -101,11 +99,6 @@ class BaseModdevgradleImpl(
             else -> "" // mcp or neoform don't have a manifest.
         }
 
-        if (type == MDGType.Legacy) {
-            // proxy configurations will add remap configurations to this
-            remapConfiguration = target.configurations.create("modstitchMdgRemap")
-            target.obfuscation.createRemappingConfiguration(remapConfiguration)
-        }
 
         if (type == MDGType.Legacy) {
             setupLegacyMixin(target)
@@ -157,15 +150,22 @@ class BaseModdevgradleImpl(
         }
 
         target.configurations.create(proxyModConfigurationName) proxy@{
+
             deferred {
                 it.extendsFrom(this@proxy)
             }
 
             target.onMdgEnable {
-                if (type == MDGType.Legacy)
-                    remapConfiguration.extendsFrom(this@proxy)
+                if (type == MDGType.Legacy){
+                    val remapping = target.obfuscation.createRemappingConfiguration(this)
+                    this.dependencies.whenObjectAdded{
+                        remapping.dependencies.add(this)
+                    }
+
+                }
             }
         }
+
 
         target.configurations.create(proxyRegularConfigurationName) proxy@{
             deferred {
@@ -179,6 +179,7 @@ class BaseModdevgradleImpl(
             }
         }
     }
+
 
     override fun configureJiJConfiguration(target: Project, configuration: Configuration) {
         target.onMdgEnable {
