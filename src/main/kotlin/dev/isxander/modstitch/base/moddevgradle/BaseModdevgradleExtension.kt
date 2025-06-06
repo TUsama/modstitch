@@ -15,10 +15,10 @@ import org.gradle.api.Project
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.tasks.JavaExec
 import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.jvm.toolchain.JvmVendorSpec
 import javax.inject.Inject
 import org.gradle.kotlin.dsl.*
-import org.gradle.kotlin.dsl.getByName
 
 interface BaseModDevGradleExtension {
     /**
@@ -123,13 +123,11 @@ open class BaseModDevGradleExtensionImpl @Inject constructor(
                     it.uppercaseChar()
                 }
                 project.tasks.named<JavaExec>("run$upperName"){
-                    val toolChain = project.extensions.getByName("javaToolchains") as org.gradle.jvm.toolchain.JavaToolchainService
-                    javaLauncher.set(
+                    val toolChain = project.extensions.getByType<JavaToolchainService>()
                         toolChain.launcherFor {
                             languageVersion = JavaLanguageVersion.of(project.modstitch.javaTarget.get())
                             vendor = JvmVendorSpec.JETBRAINS
                         }
-                    )
                 }
             }
         }
