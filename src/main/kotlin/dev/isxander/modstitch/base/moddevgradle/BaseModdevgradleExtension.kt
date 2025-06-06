@@ -94,6 +94,11 @@ open class BaseModDevGradleExtensionImpl @Inject constructor(
                         client()
                         ideName = "${namingConvention("Client")} (${project.path})"
                     }
+                    registerOrConfigure("client2") {
+                        client()
+                        programArguments.addAll("--username", "Dev2")
+                        ideName = "${namingConvention("Client")} (${project.path})"
+                    }
                 }
                 if (server) {
                     registerOrConfigure("server") {
