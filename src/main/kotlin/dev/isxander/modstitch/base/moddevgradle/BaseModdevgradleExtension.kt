@@ -13,9 +13,12 @@ import net.neoforged.moddevgradle.legacyforge.dsl.MixinExtension
 import net.neoforged.moddevgradle.legacyforge.dsl.ObfuscationExtension
 import org.gradle.api.Project
 import org.gradle.api.model.ObjectFactory
-import org.gradle.api.provider.Property
+import org.gradle.api.tasks.JavaExec
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import javax.inject.Inject
 import org.gradle.kotlin.dsl.*
+import org.gradle.kotlin.dsl.getByName
 
 interface BaseModDevGradleExtension {
     /**
@@ -62,6 +65,7 @@ interface BaseModDevGradleExtension {
      * [namingConvention] is a function that takes a string (the side, Client or Server) and returns the IDE name of the run config.
      */
     fun defaultRuns(client: Boolean = true, server: Boolean = true, namingConvention: (String) -> String = { "NeoForge $it" })
+    fun runOnJBR()
 }
 
 open class BaseModDevGradleExtensionImpl @Inject constructor(
@@ -109,6 +113,28 @@ open class BaseModDevGradleExtensionImpl @Inject constructor(
             }
         }
     }
+
+    override fun runOnJBR() {
+        val project = project
+        configureNeoforge{
+            runs.all{
+                jvmArguments.add("-XX:+AllowEnhancedClassRedefinition")
+                val upperName = name.replaceFirstChar {
+                    it.uppercaseChar()
+                }
+                project.tasks.named<JavaExec>("run$upperName"){
+                    val toolChain = project.extensions.getByName("javaToolchains") as org.gradle.jvm.toolchain.JavaToolchainService
+                    javaLauncher.set(
+                        toolChain.launcherFor {
+                            languageVersion = JavaLanguageVersion.of(project.modstitch.javaTarget.get())
+                            vendor = JvmVendorSpec.JETBRAINS
+                        }
+                    )
+                }
+            }
+        }
+
+    }
 }
 
 open class BaseModDevGradleExtensionDummy : BaseModDevGradleExtension {
@@ -119,6 +145,7 @@ open class BaseModDevGradleExtensionDummy : BaseModDevGradleExtension {
     override val obfuscationExtension: ObfuscationExtension by NotExistsDelegate()
 
     override fun defaultRuns(client: Boolean, server: Boolean, namingConvention: (String) -> String) {}
+    override fun runOnJBR() {}
 }
 
 sealed interface MDGEnableConfiguration {
