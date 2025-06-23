@@ -53,7 +53,7 @@ interface BaseModDevGradleExtension {
 
     /**
      * The underlying platform-specific extension: `mixin`
-     * Accessing this property will throw an exception if the current platform is ModDevGradle Legacy.
+     * Accessing this property will throw an exception if the current platform is not ModDevGradle Legacy.
      */
     val mixinExtension: MixinExtension
 
@@ -65,12 +65,15 @@ interface BaseModDevGradleExtension {
 
     /**
      * Creates two run configurations: one for the client and one for the server.
-     * [namingConvention] is a function that takes a string (the side, Client or Server) and returns the IDE name of the run config.
+     *
+     * [namingConvention] is a function that takes two strings:
+     * the platform name ("Forge", "NeoForge", or "Minecraft") and the side ("Client" or "Server"),
+     * and returns the IDE name of the run configuration (e.g., "NeoForge Client", "Forge Server").
      */
     fun defaultRuns(
         client: Boolean = true,
         server: Boolean = true,
-        namingConvention: (String) -> String = { "NeoForge $it" }
+        namingConvention: (String, String) -> String = { name, side -> "$name $side" }
     )
 
     fun ModDevExtension.runOnJBR(project: Project)
@@ -79,8 +82,8 @@ interface BaseModDevGradleExtension {
 open class BaseModDevGradleExtensionImpl @Inject constructor(
     objects: ObjectFactory,
     @Transient private val project: Project,
-    private val enableConfiguration: MDGEnableConfigurationInternal,
-    private val type: MDGType,
+    val enableConfiguration: MDGEnableConfigurationInternal,
+    val type: MDGType,
 ) : BaseModDevGradleExtension {
     override fun enable(action: Action<MDGEnableConfiguration>) {
         action.execute(enableConfiguration)
@@ -95,11 +98,16 @@ open class BaseModDevGradleExtensionImpl @Inject constructor(
 
     override val obfuscationExtension: ObfuscationExtension by ExtensionGetter(project)
     override fun configureObfuscation(action: Action<ObfuscationExtension>) =
-        if (type != MDGType.Legacy) super.configureObfuscation(action) else {
+        if (type == MDGType.Legacy) super.configureObfuscation(action) else {
         }
 
-    override fun defaultRuns(client: Boolean, server: Boolean, namingConvention: (String) -> String) {
+    override fun defaultRuns(client: Boolean, server: Boolean, namingConvention: (String, String) -> String) {
         val project = project
+        val name = when {
+            !enableConfiguration.neoForgeVersion.isNullOrEmpty() -> "NeoForge"
+            !enableConfiguration.forgeVersion.isNullOrEmpty() -> "Forge"
+            else -> "Minecraft"
+        }
         configureNeoforge {
             runs {
                 fun registerOrConfigure(name: String, action: Action<RunModel>) = action(maybeCreate(name))
@@ -107,7 +115,7 @@ open class BaseModDevGradleExtensionImpl @Inject constructor(
                 if (client) {
                     registerOrConfigure("client") {
                         client()
-                        ideName = "${namingConvention("Client")} (${project.path})"
+                        ideName = "${namingConvention(name, "Client")} (${project.path})"
                     }
                     registerOrConfigure("client2") {
                         client()
@@ -118,7 +126,7 @@ open class BaseModDevGradleExtensionImpl @Inject constructor(
                 if (server) {
                     registerOrConfigure("server") {
                         server()
-                        ideName = "${namingConvention("Server")} (${project.path})"
+                        ideName = "${namingConvention(name, "Server")} (${project.path})"
                     }
                 }
             }
@@ -151,7 +159,7 @@ open class BaseModDevGradleExtensionDummy : BaseModDevGradleExtension {
     override val mixinExtension: MixinExtension by NotExistsDelegate()
     override val obfuscationExtension: ObfuscationExtension by NotExistsDelegate()
 
-    override fun defaultRuns(client: Boolean, server: Boolean, namingConvention: (String) -> String) {}
+    override fun defaultRuns(client: Boolean, server: Boolean, namingConvention: (String, String) -> String) {}
     override fun ModDevExtension.runOnJBR(project: Project) {
     }
 
@@ -185,16 +193,15 @@ class RegularEnableConfiguration(impl: BaseModdevgradleImpl, private val extensi
         super.enable(target)
     }
 }
-
-class LegacyEnableConfiguration(impl: BaseModdevgradleImpl, private val extension: LegacyForgeExtension) :
-    MDGEnableConfigurationInternal(impl) {
-    override var neoForgeVersion: String? by NotExistsNullableDelegate()
+class LegacyEnableConfiguration(impl: BaseModdevgradleImpl, private val extension: LegacyForgeExtension) : MDGEnableConfigurationInternal(impl) {
+    override var neoForgeVersion: String? = null
     override var neoFormVersion: String? by NotExistsNullableDelegate()
     override var forgeVersion: String? = null
     override var mcpVersion: String? = null
 
     override fun enable(target: Project) {
         extension.enable {
+            neoForgeVersion = this@LegacyEnableConfiguration.neoForgeVersion
             forgeVersion = this@LegacyEnableConfiguration.forgeVersion
             mcpVersion = this@LegacyEnableConfiguration.mcpVersion
         }
