@@ -14,6 +14,7 @@ import dev.isxander.modstitch.util.Side
 import dev.isxander.modstitch.util.addCamelCasePrefix
 import dev.isxander.modstitch.util.zip
 import net.fabricmc.loom.api.LoomGradleExtensionAPI
+import net.fabricmc.loom.api.fabricapi.FabricApiExtension
 import net.fabricmc.loom.util.Constants
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -77,6 +78,10 @@ class BaseLoomImpl : BaseCommonImpl<BaseLoomExtension>(
             target.sourceSets["main"],
             target.modstitch.metadata.modId.map { "$it.refmap.json" },
         )
+
+        target.extensions.getByType<FabricApiExtension>().configureDataGeneration{
+            client = true
+        }
     }
 
     override fun applyPlugins(target: Project) {
